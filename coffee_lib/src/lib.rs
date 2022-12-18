@@ -3,6 +3,8 @@
 //!
 //!
 //! author: Vincenzo Palazzo <vincenzopalazzodev@gmail.com>
+#![allow(dead_code)]
+pub mod cln_conf;
 pub mod errors;
 pub mod plugin;
 pub mod plugin_conf;

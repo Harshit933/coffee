@@ -1,9 +1,9 @@
 //! Coffee configuration utils.
 
-use std::env;
-
 use coffee_lib::errors::CoffeeError;
 use serde::{Deserialize, Serialize};
+use std::{env, path::Path};
+use tokio::fs::create_dir;
 
 use super::cmd::CoffeeArgs;
 
@@ -13,9 +13,14 @@ use super::cmd::CoffeeArgs;
 pub struct CoffeeConf {
     /// Network configuration related
     /// to core lightning network
-    network: String,
-    /// plugin manager configuration path
-    config: String,
+    pub network: String,
+    /// path of core lightning configuration file
+    /// managed by coffe
+    pub config_path: String,
+    /// path of the core lightnign configuration file
+    /// not managed by core lightning
+    /// (this file included the file managed by coffe)
+    pub cln_config_path: Option<String>,
     /// root path plugin manager
     pub root_path: String,
     /// path of all plugin that are installed
@@ -23,17 +28,29 @@ pub struct CoffeeConf {
     pub plugins_path: Vec<String>,
 }
 
+async fn check_dir_or_make_if_missing(path: String) -> Result<(), CoffeeError> {
+    if !Path::exists(Path::new(&path.to_owned())) {
+        create_dir(path).await?;
+    }
+    Ok(())
+}
+
 impl CoffeeConf {
     /// Create a new instance of the coffee configuration from the args.
     pub async fn new(conf: &CoffeeArgs) -> Result<Self, CoffeeError> {
+        #[allow(deprecated)]
         let mut def_path = env::home_dir().unwrap().to_str().unwrap().to_string();
         // FIXME: check for double slash
         def_path += "/.coffee";
+        check_dir_or_make_if_missing(def_path.to_string()).await?;
+        check_dir_or_make_if_missing(format!("{def_path}/bitcoin")).await?;
+        check_dir_or_make_if_missing(format!("{def_path}/testnet")).await?;
         let mut coffee = CoffeeConf {
             network: "bitcoin".to_owned(),
             root_path: format!("{def_path}"),
-            config: format!("{def_path}/bitcoin/coffee.conf"),
+            config_path: format!("{def_path}/bitcoin/coffee.conf"),
             plugins_path: vec![],
+            cln_config_path: None,
         };
 
         // check the command line arguments and bind them
@@ -54,11 +71,11 @@ impl CoffeeConf {
     fn bind_cmd_line_params(&mut self, conf: &CoffeeArgs) -> Result<(), CoffeeError> {
         if let Some(network) = &conf.network {
             self.network = network.to_owned();
-            self.config = format!("{}/{}/coffee.conf", self.root_path, self.network);
+            self.config_path = format!("{}/{}/coffee.conf", self.root_path, self.network);
         }
 
         if let Some(config) = &conf.conf {
-            self.config = config.to_owned();
+            self.config_path = config.to_owned();
         }
 
         // FIXME: be able to put the directory also in another place!

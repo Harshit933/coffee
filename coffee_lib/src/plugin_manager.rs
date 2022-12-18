@@ -1,6 +1,5 @@
 //! Plugin manager module definition.
 use async_trait::async_trait;
-use std::collections::HashSet;
 
 use crate::errors::CoffeeError;
 
@@ -11,11 +10,10 @@ pub trait PluginManager {
     /// configure the plugin manger.
     async fn configure(&mut self) -> Result<(), CoffeeError>;
 
-    /// install a sequence of plugin or return an error if somethings happens.
-    // FIXME: what happens if only one plugin fails?
-    async fn install(&mut self, plugins: &HashSet<String>) -> Result<(), CoffeeError>;
+    /// install a plugin by name, return an error if some error happens.
+    async fn install(&mut self, plugins: &str, verbose: bool) -> Result<(), CoffeeError>;
 
-    /// return the list of pluing manager by the plugin manager.
+    /// return the list of plugin manager by the plugin manager.
     async fn list(&mut self) -> Result<(), CoffeeError>;
 
     /// upgrade a sequence of plugin managed by the plugin manager.
@@ -23,4 +21,8 @@ pub trait PluginManager {
 
     /// add the remote repository to the plugin manager.
     async fn add_remote(&mut self, name: &str, url: &str) -> Result<(), CoffeeError>;
+
+    /// set up the core lightning configuration target for the
+    /// plugin manager.
+    async fn setup(&mut self, cln_conf_path: &str) -> Result<(), CoffeeError>;
 }

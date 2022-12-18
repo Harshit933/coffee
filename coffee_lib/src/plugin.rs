@@ -18,28 +18,30 @@ pub enum PluginLang {
 }
 
 impl PluginLang {
-    pub async fn default_install(&self, path: &str, name: &str) -> Result<String, CoffeeError> {
+    pub async fn default_install(
+        &self,
+        path: &str,
+        name: &str,
+        verbose: bool,
+    ) -> Result<String, CoffeeError> {
         match self {
             PluginLang::Python => {
                 /* 1. RUN PIP install or poetry install
                  * 2. return the path of the main file */
-                let req_file = format!("{}/requirements.txt", path);
-                let main_file = format!("{}/{}.py", path, name);
-                match Command::new("pip")
-                    .arg("install")
-                    .arg("-r")
-                    .arg(req_file.as_str())
-                    .output()
-                    .await
-                {
-                    Ok(_) => Ok(main_file),
-                    Err(err) => {
-                        return Err(CoffeeError::new(
-                            1,
-                            &format!("problem installing python plugin {err}"),
-                        ))
-                    }
-                }
+                let req_file = format!("{path}/requirements.txt");
+                let main_file = format!("{path}/{name}.py");
+                let mut cmd = Command::new("pip");
+                cmd.arg("install").arg("-r").arg(&req_file.clone());
+                if verbose {
+                    let _ = cmd
+                        .spawn()
+                        .expect("Unable to run the command")
+                        .wait()
+                        .await?;
+                } else {
+                    let _ = cmd.output().await?;
+                };
+                Ok(main_file)
             }
             PluginLang::Go => {
                 /* better instructions needed here */
@@ -78,10 +80,10 @@ impl PluginLang {
 }
 
 /// Plugin struct definition
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Plugin {
     name: String,
-    path: String,
+    pub path: String,
     lang: PluginLang,
     conf: Option<Conf>,
 }
@@ -96,46 +98,37 @@ impl Plugin {
             conf: config,
         }
     }
-
     /// configure the plugin in order to work with cln.
     ///
     /// In case of success return the path of the executable.
-    pub async fn configure(&mut self) -> Result<String, CoffeeError> {
+    pub async fn configure(&mut self, verbose: bool) -> Result<String, CoffeeError> {
         let exec_path = if let Some(conf) = &self.conf {
             if let Some(script) = &conf.plugin.install {
                 let cmds = script.split("\n"); // Check if the script contains `\`
                 for cmd in cmds {
-                    let cmd_result = Command::new(cmd)
+                    let mut child = Command::new(cmd)
                         .current_dir(self.path.clone())
-                        .output()
-                        .await;
-                    match cmd_result {
-                        Ok(_) => {}
-                        Err(err) => {
-                            return Err(CoffeeError::new(
-                                1,
-                                &format!(
-                                    "problem installing, error executing plugin commands : {err}"
-                                ),
-                            ))
-                        }
-                    }
+                        .spawn()
+                        .expect("not possible run the command");
+                    let _ = child.wait().await?;
                 }
                 format!("{}/{}", self.path, conf.plugin.main)
             } else {
-                self.lang.default_install(&self.path, &self.name).await?
+                self.lang
+                    .default_install(&self.path, &self.name, verbose)
+                    .await?
             }
         } else {
-            self.lang.default_install(&self.path, &self.name).await?
+            self.lang
+                .default_install(&self.path, &self.name, verbose)
+                .await?
         };
         Ok(exec_path)
     }
-
     /// upgrade the plugin to a new version.
     pub async fn upgrade(&mut self) -> Result<(), CoffeeError> {
         todo!("not implemented yet")
     }
-
     /// remove the plugin and clean up all the data.
     async fn remove(&mut self) -> Result<(), CoffeeError> {
         todo!("not implemented yet")

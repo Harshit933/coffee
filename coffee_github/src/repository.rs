@@ -67,7 +67,7 @@ impl Github {
                     let mut plugin_name = String::new();
                     let mut plugin_lang = PluginLang::Unknown;
 
-                    /// try to understand the language from the file
+                    // try to understand the language from the file
                     let files = WalkDir::new(plugin_path.path()).max_depth(1);
                     for file in files {
                         let file_dir = file.unwrap().clone();
@@ -106,13 +106,14 @@ impl Github {
                     // file and skip the iteration on all the file to understand the language.
                     //
                     // The language is already contained inside the configuration file.
-                    debug!("new plugin: {} {}", plugin_name, path_to_plugin);
                     let plugin = Plugin::new(
                         plugin_name.as_str(),
                         path_to_plugin.as_str(),
                         plugin_lang,
                         conf.clone(),
                     );
+
+                    debug!("new plugin: {:?}", plugin);
                     self.plugins.push(plugin);
                 }
                 Err(err) => return Err(CoffeeError::new(1, err.to_string().as_str())),
@@ -131,7 +132,7 @@ impl Repository for Github {
     /// details.
     async fn init(&mut self) -> Result<(), CoffeeError> {
         debug!(
-            "INITIALIZING REPOSITORY: {} {} > {}",
+            "initializing repository: {} {} > {}",
             self.name, &self.url.url_string, &self.url.path_string,
         );
         let res = git2::Repository::clone(&self.url.url_string, &self.url.path_string);
